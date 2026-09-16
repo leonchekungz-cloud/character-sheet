@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Identity Sheet AI</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f5f6f8;color:#171717}
+.wrap{max-width:900px;margin:40px auto;padding:20px}.card{background:#fff;border-radius:18px;padding:28px;box-shadow:0 8px 30px #00000012}
+h1{margin-top:0}.muted{color:#666}.drop{border:2px dashed #bbb;border-radius:14px;padding:30px;text-align:center;cursor:pointer;margin:20px 0}.drop:hover{background:#fafafa}
+img.preview{max-width:260px;max-height:260px;border-radius:12px;margin-top:15px;display:none}
+label{display:block;font-weight:700;margin:18px 0 7px}select,textarea{width:100%;padding:12px;border:1px solid #ccc;border-radius:10px;font:inherit}
+button{border:0;border-radius:10px;padding:13px 18px;font-weight:700;cursor:pointer;background:#111;color:#fff;margin-top:20px}
+button:disabled{opacity:.5;cursor:not-allowed}.result{margin-top:25px;text-align:center}.result img{max-width:100%;border-radius:12px;display:none}
+#error{color:#b00020;margin-top:15px;white-space:pre-wrap}.loading{display:none;margin-top:15px}
+</style>
+</head>
+<body>
+<div class="wrap"><div class="card">
+<h1>Identity Sheet AI</h1>
+<p class="muted">Upload satu foto referensi untuk membuat foto full-body + close-up dengan identitas yang konsisten.</p>
+
+<div class="drop" id="drop">
+  <strong>Klik untuk pilih foto</strong><br>
+  <span class="muted">atau tarik foto ke sini</span>
+  <input id="file" type="file" accept="image/*" hidden>
+  <img id="preview" class="preview">
+</div>
+
+<label for="composition">Komposisi</label>
+<select id="composition">
+<option>Identity Sheet — Full Body + Close-Up</option>
+<option>Full Body Left + Close-Up Right</option>
+<option>Close-Up Left + Full Body Right</option>
+</select>
+
+<label for="size">Ukuran</label>
+<select id="size">
+<option value="1536x1024">Landscape 1536 × 1024</option>
+<option value="1024x1024">Square 1024 × 1024</option>
+<option value="1024x1536">Portrait 1024 × 1536</option>
+</select>
+
+<label for="extra">Instruksi tambahan (opsional)</label>
+<textarea id="extra" rows="4" placeholder="Contoh: pakaian tetap sama, ekspresi natural..."></textarea>
+
+<button id="generate" disabled>✨ Generate Photo</button>
+<div class="loading" id="loading">Sedang membuat gambar...</div>
+<div id="error"></div>
+
+<div class="result"><img id="result"><br><button id="download" style="display:none">Download Image</button></div>
+</div></div>
+
+<script>
+const fileInput=document.getElementById('file'),drop=document.getElementById('drop'),preview=document.getElementById('preview');
+const generate=document.getElementById('generate'),loading=document.getElementById('loading'),error=document.getElementById('error');
+const result=document.getElementById('result'),download=document.getElementById('download');
+let dataUrl='';
+
+drop.onclick=()=>fileInput.click();
+fileInput.onchange=()=>fileInput.files[0]&&loadFile(fileInput.files[0]);
+drop.ondragover=e=>e.preventDefault();
+drop.ondrop=e=>{e.preventDefault();e.dataTransfer.files[0]&&loadFile(e.dataTransfer.files[0])};
+
+function loadFile(file){
+ const r=new FileReader();
+ r.onload=()=>{dataUrl=r.result;preview.src=dataUrl;preview.style.display='block';generate.disabled=false;error.textContent=''};
+ r.readAsDataURL(file);
+}
+
+generate.onclick=async()=>{
+ if(!dataUrl)return;
+ generate.disabled=true;loading.style.display='block';error.textContent='';result.style.display='none';download.style.display='none';
+ const composition=document.getElementById('composition').value;
+ const size=document.getElementById('size').value;
+ const extra=document.getElementById('extra').value.trim();
+ const prompt=`Create a highly realistic professional studio identity sheet using the uploaded reference image.
+Composition: ${composition}.
+Show the EXACT SAME PERSON in both views. Preserve face structure, face shape, eyes, nose, mouth, hairstyle, hair color, skin tone, age appearance, body proportions, clothing and accessories.
+Full-body view: natural standing pose, head-to-feet visible, realistic anatomy.
+Close-up view: head and shoulders, frontal camera-facing pose, natural neutral expression, eyes visible.
+Clean white studio background. Soft, even professional studio lighting. Natural skin texture. Photorealistic, sharp focus, realistic colors and anatomy.
+Do not create a different person. No duplicate identities, distorted faces, extra limbs, missing limbs, text, watermark, logo, border, or unnecessary objects.
+Arrange the two views side-by-side with clear natural spacing and no overlap.
+${extra}`;
+ try{
+  const res=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image:dataUrl,prompt,size})});
+  const data=await res.json();
+  if(!res.ok)throw new Error(data.error||'Generation failed');
+  result.src=data.image;result.style.display='inline-block';download.style.display='inline-block';
+  download.onclick=()=>{const a=document.createElement('a');a.href=data.image;a.download='identity-sheet.png';a.click()};
+ }catch(e){error.textContent=e.message}
+ finally{generate.disabled=false;loading.style.display='none'}
+};
+</script>
+</body>
+</html>
